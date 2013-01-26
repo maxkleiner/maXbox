@@ -1,0 +1,26 @@
+PROGRAM myTravelerClock;
+CONST 
+//<Constant declarations> 
+  TEXTOUT = ' hi time traveler ';
+
+{TYPE 
+<Type declarations>} 
+
+VAR 
+//<Variable declarations>
+  i, N, SN: integer;
+
+//<FUNCTION>
+//<PROCEDURE> 
+
+BEGIN  //Main
+//<Executable statements>
+  N:= 4; SN:= 1000;
+  for i:= 1 to round(power(2,N)) do begin 
+    Writeln(intToStr(i)+TEXTOUT + DateTimeToStr(AddHours(Now,-i)));
+    Delay(SN);   //speed of time machine
+  end;  
+//<Definitions>  
+END. 
+
+----app_template_loaded_code----
