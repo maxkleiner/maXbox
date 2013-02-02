@@ -1,9 +1,9 @@
-PROGRAM NTFS_System;
+PROGRAM RLE_Compress_2_Draft;
 
 //Procedure RleCompress2(Stream : TStream); forward;
 //Procedure RleDecompress2(Stream : TStream); forward;
 
-// kind of an Idea from bitbox, locs=84;
+// kind of an Idea from bitbox, locs= 238; 6 intF;
 
 {TYPE 
 <Type declarations>} 
@@ -18,42 +18,6 @@ VAR
     midilist: TStringList;
 //<FUNCTION>
 //<PROCEDURE> 
-
-procedure NTFSDemo;
-begin
- //Function NtfsGetCompression( const FileName : string; var State : Short) : Boolean;');
- //Function NtfsGetCompression1( const FileName : string) : TFileCompressionState;');
- //Function NtfsSetCompression( const FileName : string; const State : Short) : Boolean');
- //Procedure NtfsSetFileCompression( const FileName : string; const State : TFileCompressionState)');
- //Procedure NtfsSetDirectoryTreeCompression( const Directory : string; const State : TFileCompressionState)');
- //Procedure NtfsSetDefaultFileCompression( const Directory : string; const State : TFileCompressionState)');
- //Procedure NtfsSetPathCompression( const Path : string; const State : TFileCompressionState; Recursive : Boolean)');
- if NtfsSetSparse(Exepath+'firstdemo.txt') then writeln('NtfsSetSparse true');
- //Function NtfsZeroDataByHandle( const Handle : THandle; const First, Last : Int64) : Boolean');
- //Function NtfsZeroDataByName( const FileName : string; const First, Last : Int64) : Boolean');
- //Function NtfsQueryAllocRanges( const FileName : string; Offset, Count : Int64; var Ranges : TNtfsAllocRanges) : Boolean');
- //Function NtfsGetAllocRangeEntry( const Ranges : TNtfsAllocRanges; Index : Integer) : TFileAllocatedRangeBuffer');
- //Function NtfsSparseStreamsSupported( const Volume : string) : Boolean');
-  if NtfsGetSparse(Exepath+'firstdemo.txt') then writeln('NtfsGetSparse true');
- {Function NtfsDeleteReparsePoint( const FileName : string; ReparseTag : DWORD) : Boolean');
- Function NtfsSetReparsePoint( const FileName : string; var ReparseData, Size : Longword) : Boolean');
- Function NtfsGetReparsePoint( const FileName : string; var ReparseData : TReparseGuidDataBuffer) : Boolean');
- Function NtfsGetReparseTag( const Path : string; var Tag : DWORD) : Boolean');
- Function NtfsReparsePointsSupported( const Volume : string) : Boolean');
- Function NtfsFileHasReparsePoint( const Path : string) : Boolean');
- Function NtfsIsFolderMountPoint( const Path : string) : Boolean');
- Function NtfsMountDeviceAsDrive( const Device : string; Drive : Char) : Boolean');
- Function NtfsMountVolume( const Volume : Char; const MountPoint : string) : Boolean');
-  CL.AddTypeS('TOpLock', '( olExclusive, olReadOnly, olBatch, olFilter )');
- Function NtfsOpLockAckClosePending( Handle : THandle; Overlapped : TOverlapped) : Boolean');
- Function NtfsOpLockBreakAckNo2( Handle : THandle; Overlapped : TOverlapped) : Boolean');
- Function NtfsOpLockBreakAcknowledge( Handle : THandle; Overlapped : TOverlapped) : Boolean');
- Function NtfsOpLockBreakNotify( Handle : THandle; Overlapped : TOverlapped) : Boolean');
- Function NtfsRequestOpLock( Handle : THandle; Kind : TOpLock; Overlapped : TOverlapped) : Boolean');
- Function NtfsCreateJunctionPoint( const Source, Destination : string) : Boolean');
- Function NtfsDeleteJunctionPoint( const Source : string) : Boolean');
- Function NtfsGetJunctionPointDestination( const Source : string; var Destination : string) : Boolean');}
-end;
 
 
 function GetTextFromFile(const AFile: String; var RetStr: string): boolean;
@@ -76,6 +40,104 @@ begin
   end; //try
 end;
 
+procedure RleCompressTest(Stream: TStream);
+var
+  Count, Count2, Count3, I: Integer;
+  Buf1: array [0..1024] of Byte;
+  Buf2: array [0..60000] of Byte;
+  buf3: string;
+  B: Byte;
+  Tmp: TMemoryStream;
+begin
+  Tmp := TMemoryStream.Create;
+  Stream.Position := 0;
+  Count := 1024;
+  while Count = 1024 do begin
+    //Count := Stream.Read(Buf1, 1024);
+    Count2 := 0;
+    I := 0;
+    while I < Count do begin
+      B := Buf1[I];
+      Count3 := 0;
+      while (Buf1[I] = B) and (I < Count) and (Count3 < $30) do begin
+        Inc(I);
+        Inc(Count3);
+      end;
+      //if (I = Count) and (Count3 in [2..$2F]) and (Count = 1024) then
+      if (I = Count) and (Count3 > 2) and (Count <$2F) and (Count = 1024) then
+        Stream.Position := Stream.Position - Count3
+      else begin
+        if Count3 = 1 then begin
+          if (B and $C0) = $C0 then begin
+            Buf2[Count2] := $C1;
+            Buf2[Count2 + 1] := B;
+            //Inc(Count2, 2);
+            Count2:= count2 + 2;
+          end
+          else begin
+            Buf2[Count2] := B;
+            Inc(Count2);
+          end;
+        end
+        else begin
+          Buf2[Count2] := Count3 or $C0;
+          Buf2[Count2 + 1] := B;
+          //Inc(Count2, 2);
+         Count2:= count2 + 2;
+        end;
+      end;
+    end;
+    //Tmp.Write(Buf2, Count2);
+  end;
+  Tmp.Position := 0;
+  Stream.Size := 0;
+  Stream.CopyFrom(Tmp, Tmp.Size);
+  Tmp.Free;
+end;
+
+procedure RleDecompressTest(Stream: TStream);
+var
+  Count, Count2, Count3, I: Integer;
+  Buf1: array [0..1024] of Byte;
+  Buf2: array [0..60000] of Byte;
+  B: Byte;
+  Tmp: TMemoryStream;
+begin
+  Tmp := TMemoryStream.Create;
+  Stream.Position := 0;
+  Count := 1024;
+  while Count = 1024 do
+  begin
+    //Count := Stream.Read(Buf1, 1024);
+    Count2 := 0;
+    I := 0;
+    while I < Count do begin
+      if (Buf1[I] and $C0) = $C0 then begin
+        if I = Count - 1 then
+          Stream.Position := Stream.Position - 1
+        else begin
+          B := Buf1[I] and $3F;
+          Inc(I);
+          for Count3 := Count2 to Count2 + B - 1 do
+            Buf2[Count3] := Buf1[I];
+          Count2 := Count2 + B;
+        end;
+      end
+      else begin
+        Buf2[Count2] := Buf1[I];
+        Inc(Count2);
+      end;
+      Inc(I);
+    end;
+    //Tmp.Write(Buf2, Count2);
+  end;
+  Tmp.Position := 0;
+  Stream.Size := 0;
+  Stream.CopyFrom(Tmp, Tmp.Size);
+  Tmp.Free;
+end;
+
+
 Procedure AllBooleanPattern(aX, aY: integer);
 begin
     Writeln(#13#10+'************** All Booolean Functions **************');
@@ -97,55 +159,60 @@ begin
     PrintF('%-36s 16 True',[inttobin(NOT 0)])
 end;
 
+ var tempstream: TStream;
+
 BEGIN  //Main
-//<Executable statement
+//<Executable statements>
 
- NTFSDemo;
-
-if GetTextFromFile(ExePath+'firstdemo.txt',st) then
+if GetTextFromFile(Exepath+'examples/firstdemo_compress.txt',st) then
     ShowMessageBig(st);
     
        fileStream.Seek(0, 0)
-
-       writeln(StreamtoString(fileStream))
+       //writeln(StreamtoString(fileStream))
        //StringToStream
-
        fileStream.Seek(0, 0)
-
-       //RleCompress2(fileStream);
+       writeln('file stream size '+inttostr(filestream.size));
        fileStream.Free;
+    
+       //tempStream:= TFileStream.create(Exepath+'firstdemo.txt',fmShareExclusive);
+       tempStream:= TFileStream.create(Exepath+'examples/firstdemo_compress.txt',fmOpenReadWrite);
+       try
+         RleCompress2(tempStream);
+         tempStream.Seek(0, 0)
+         writeln('RLE compress '+StreamtoString(tempStream))
+      
+         RleDECompress2(tempStream);
+         tempStream.Seek(0, 0)
+         writeln('RLE decompress '+StreamtoString(tempStream))
+       finally
+        //fileStream.Free;
+         tempStream.Free;
+       end;
        
        midilist:= TStringList.create;
        GetMidiOutputs(midilist);
        for i:= 1 to midilist.count -1 do 
          writeln(midilist.strings[i]);
        midilist.Free;
-
-
   
    //RleDecompress( Stream : TStream)');
-
-  
    div_dbl:= 5.0 / 2.0; // 2.500000
    writeln(Format('%0.6f', [div_dbl]))
    div_dbl:= 20 mod 3;  // 2.00000
    writeln(Format('%f', [div_dbl]))
-   a:= 5
-   b:= 6
+   a:= 5; b:= 6;
    if not (A<>B) then writeln('even') else
                     writeln('odd');   
    if (A=B) then writeln('even') else
                     writeln('odd');   
 
    // wholee ASCII Table
-   { writeln(Chr(67))
-   for i:= 0 to 255 do
+   {for i:= 0 to 255 do
      writeln(format('wert %d %s',[i, Chr(i)]))}
 
     writeln(Format('%s',[inttobin(97)]))
     writeln(Format('%s',[inttobin(223)]))
     writeln(Format('%s',[inttobin(97 XOR 223)]))
-    
     bin1:= 97;
     bin2:= 223;
     bin3:= bin1 XOR bin2;
@@ -159,18 +226,15 @@ if GetTextFromFile(ExePath+'firstdemo.txt',st) then
     wd:= wd SHL 1
     writeln('double '+IntToBin(wd))
     writeln(IntToStr(wd))
-    
     //half the value
     wd:= wd SHR 1
     writeln('half     '+IntToBin(wd))
     writeln(IntToStr(wd))
-    
     //init the value
     writeln('init      '+IntToBin(wd))
     writeln('          '+IntToBin(wd XOR wd))
 
-    AllBooleanPattern(10,12);
-
+    //AllBooleanPattern(10,12);
 END. 
 
 
@@ -211,3 +275,113 @@ END.
 11111111111111111111111111111111     16 True                         
 
 ----app_template_loaded----
+
+
+procedure RleCompress(Stream: TStream);
+var
+  Count, Count2, Count3, I: Integer;
+  Buf1: array [0..1024] of Byte;
+  Buf2: array [0..60000] of Byte;
+  B: Byte;
+  Tmp: TMemoryStream;
+begin
+  Tmp := TMemoryStream.Create;
+  Stream.Position := 0;
+
+  Count := 1024;
+  while Count = 1024 do
+  begin
+    Count := Stream.Read(Buf1, 1024);
+    Count2 := 0;
+    I := 0;
+    while I < Count do
+    begin
+      B := Buf1[I];
+      Count3 := 0;
+      while (Buf1[I] = B) and (I < Count) and (Count3 < $30) do
+      begin
+        Inc(I);
+        Inc(Count3);
+      end;
+      if (I = Count) and (Count3 in [2..$2F]) and (Count = 1024) then
+        Stream.Position := Stream.Position - Count3
+      else
+      begin
+        if Count3 = 1 then
+        begin
+          if (B and $C0) = $C0 then
+          begin
+            Buf2[Count2] := $C1;
+            Buf2[Count2 + 1] := B;
+            Inc(Count2, 2);
+          end
+          else
+          begin
+            Buf2[Count2] := B;
+            Inc(Count2);
+          end;
+        end
+        else
+        begin
+          Buf2[Count2] := Count3 or $C0;
+          Buf2[Count2 + 1] := B;
+          Inc(Count2, 2);
+        end;
+      end;
+    end;
+    Tmp.Write(Buf2, Count2);
+  end;
+
+  Tmp.Position := 0;
+  Stream.Size := 0;
+  Stream.CopyFrom(Tmp, Tmp.Size);
+  Tmp.Free;
+end;
+
+procedure RleDecompress(Stream: TStream);
+var
+  Count, Count2, Count3, I: Integer;
+  Buf1: array [0..1024] of Byte;
+  Buf2: array [0..60000] of Byte;
+  B: Byte;
+  Tmp: TMemoryStream;
+begin
+  Tmp := TMemoryStream.Create;
+  Stream.Position := 0;
+
+  Count := 1024;
+  while Count = 1024 do
+  begin
+    Count := Stream.Read(Buf1, 1024);
+    Count2 := 0;
+    I := 0;
+    while I < Count do
+    begin
+      if (Buf1[I] and $C0) = $C0 then
+      begin
+        if I = Count - 1 then
+          Stream.Position := Stream.Position - 1
+        else
+        begin
+          B := Buf1[I] and $3F;
+          Inc(I);
+          for Count3 := Count2 to Count2 + B - 1 do
+            Buf2[Count3] := Buf1[I];
+          Count2 := Count2 + B;
+        end;
+      end
+      else
+      begin
+        Buf2[Count2] := Buf1[I];
+        Inc(Count2);
+      end;
+      Inc(I);
+    end;
+    Tmp.Write(Buf2, Count2);
+  end;
+
+  Tmp.Position := 0;
+  Stream.Size := 0;
+  Stream.CopyFrom(Tmp, Tmp.Size);
+  Tmp.Free;
+end;
